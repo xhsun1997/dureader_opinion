@@ -1,0 +1,103 @@
+
+
+text_match_reader=palm.reader.MatchReader(vocab_path,max_seqlen,lang,seed,do_lower_case,learning_strategy)
+text_match_reader有:
+	_batch_size=None
+	_register={"token_ids","label_ids"}
+	_reader=CLSReader(vocab_path,max_len,do_lower_case,for_cn=(lane=="cn"))
+	_reader有:
+		_read_tsv(input_file)---->return examples
+		_prepare_batch_data(examples,batch_size)---> yield batch_data
+				#if is_training,lenbatch_data)==6-->[padded_input_ids,padded_segment_ids,padded_position_ids,padded_task_ids,input_mask,label_ids]
+				#if is_predict len(batch_data)==5 no label_ids
+		data_generator(input_file,batch_size,epoch)-->_read_tsv--->_prepare_batch_data-->
+						convert_examples_to_features-->features-->batch_data--->wrapper()
+
+	load_data(input_file,batch_size,num_epochs,file_format="tsv",shuffle_train=True):
+		self._batch_size=batch_size
+		self._data_generator=self._reader.data_generator(input_file,batch_batch_size,epoch,shuffle_train)
+		#也就是说text_match_reader里面的_data_generator就是data_generator
+
+	outputs_attrs={"token_ids":[[-1,-1],"int64"],"position_ids":[[-1.-1],"int64"],"segment_ids":[[-1,-1],"int64"],
+				"input_mask":[[-1,-1,1],"float32"],"task_ids":[[-1,-1],"int64"],"label_ids":[[-1],"int64"]}
+				--> return _get_registered_attrs(attrs)
+
+	_iterator()--> for batch in self._data_generator():
+						for attr in self.outputs_attr.keys():
+							res[attr]=outputs_data[attr]# 其中outputs_data记录的是所有的attr_name:attr_shape，对于text matching task我们仅需要6个
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+以上是reader的部分，下面是backbone的部分，backbone主要有ernie bert
+BERT:
+	from_config，从from_config构建模型
+	inputs_attr:->{"token_ids":[[-1,-1],"int64"],"position_ids":[[-1,-1],"int64"],"segment_ids":[[-1,-1],"int64"],
+					"input_mask":[[-1,-1,1],"float32"],"task_ids":[[-1,-1],"int64"]}
+					#这个inputs_attr会给reader进行register_with进行登记，这样reader.outputs_attr就是这个backbone的inputs_attr
+			'''register_with(reader,backbone):
+					for attr_name in backbone.input_attr.keys():
+						reader._register.add(attr_name)
+			'''
+
+	outputs_attr:->{"word_embedding":[[-1,-1,768],"float32"],"embedding_table":[[vocab_size,768],"float32"],"encoder_outputs":	[[-1,-1,768],"float32"],"sentence_embedding":[[-1,768],"float32"],"sentence_pair_embedding":[[-1,768],"float32"]}
+
+	build(inputs):-->inputs={"input_ids","position_ids","input_mask","segment_ids"}-->word_embed----->Transformer-->
+		-->{"word_embedding","embedding_table","encoder_outputs","sentence_embedding"=="sentence_pair_embedding"==next_sent_feat shape==(batch_size,768)#,注意已经经过了tanh函数，接下来就是fc(num_classes)-->logits}
+
+The difference between ernie and bert is that ernie model has task ids
+
+
+现在已经定义了reader和backbone，接下来就是任务层
+head/match.py:
+
+class MATCH:
+	inputs_attrs: describe the reader and backbone of this task head needed 
+				{"reader":{"label_ids":[[-1],"int64"]},"backbone":{"sentence_pair_embedding":[[-1,768],"float32"]}}
+				也就是reader和backbone所需要输出的对象的信息，这也就是该任务头所需要输入的对象
+	outputs_attrs: 描述的是该任务头输出的对象信息
+				if train {"loss":[[1],"float32"],"acc":[[1],"float32"]}
+				else {"logits":[[-1,num_classes],"float32"],"probs":[[-1,num_classes],"float32"]}
+
+	build(inputs): match里面的inputs就是backbone的输出sentence_pait_embedding和reader里面的label_ids,--->dropout-->fc-->logits and probs
+				if train: return {"loss":loss,"acc":acc}
+				else: return {"logits":logits,"probs":probs}
+
+utils:
+
+
+
+
+现在已经有了输入，骨架，输出层，接下来就是train了
+Trainer:
+	build_forward(backbone,task_head)-->将backbone的输出作为match head的输入
+		return loss and acc
+	
+	loss-->optimizer---------->build_backward---->run
+	trainer.train(print_steps)-->print(loss,acc),我们可以在这里自行定义，if acc>previous_acc -->predict test dataset and save
+
+
+
+
+
+
+
+
+
+
+
+
