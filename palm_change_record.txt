@@ -1,0 +1,9 @@
+在backbone/transformer.py中添加参差链接
+在optimizer中的adam.py中添加正则化
+在head/match.py里面的build函数添加一些池化操作，acc的计算
+在trainer.py的build_forward函数里面返回loss和acc
+在trainer.py的build_backward函数里面设置use_ema=True,ema_decay=0.999
+在trainer.py的train中，修改模型保存的时机。
+
+'''output_vars=match_head.build(inputs)-->outputs=={"loss","acc"}
+---->task_output_vars=={"Dureader.loss","Dureader.acc"}------->fetch_list-->run---->rt_outputs'''

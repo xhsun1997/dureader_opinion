@@ -30,8 +30,8 @@ def change_json_to_tsv(json_files,tsv_file):
         f_read.close()
         for line in lines:
             one_example=json.loads(line)
-            text_a=one_example["question"]
-            text_b=one_example["answer"]
+            text_a=one_example["question"].strip()
+            text_b=one_example["answer"].strip()
             label=one_example["yesno_answer"]
             if label=="Yes":
                 label=0
@@ -197,3 +197,16 @@ def get_test_(all_json_files,test_json_file):
             f_write.write(json.dumps(content,ensure_ascii=False)+"\n")
             num_+1
     print(num_)
+
+
+
+
+import paddlehub as hub
+
+jieba_paddle=hub.Module(name="jieba_paddle")
+
+def cut(text):
+    return jieba_paddle.cut(text,use_paddle=False)
+
+
+hub.dataset.base_nlp_dataset.MyTextMatchingDataset(tokenizer=,max_seq_len=)

@@ -1,0 +1,48 @@
+all Yes-->acc is 50.41
+all No-->acc is 30.24
+all Depends-->acc is 19.36
+
+baseline -->python3 run_classifier.py的425行注释掉，在model/transformer_encoder.py的20行from functools import reduce
+
+palm.downloader.download(item="pretrain",scope="RoBERTa-zh-large",path="paddle/roberta_zh_large/")下载roberta_zh_large到
+paddle/robert_zh_large下，与ernie同级目录，所有的预训练模型都放在这里，还有bert_base
+
+更改run_classifier.py   finetune/classifier.py
+各个模型的检查点保存在各自的checkpoints中
+根据baseline的模型。我们训练ernie1.0和bert以及robert_large这三个模型
+
+'''
+具体的，在不改变代码的前提下，对于ernie1.0模型训练出来----------->paddle/ernie/checkpoints/evalacc_8399853533504211
+对于bert_base模型，------->paddle/BERT/checkpoints/evalacc_8549981691688027
+对于roberta_large模型-------->(在roberta_large中将max_answer_length由100改为150,warmup_proportion设置为0.01)---->paddle/roberta_zh_large/checkpoints/evalacc_8555474185280117
+'''
+
+然后在baseline的模型基础上，添加残差连接，指数衰减学习率，正则化等,重新(重新指的是加载原始的预训练模型参数而不是之前的检查点)训练上述三个模型
+具体的在src/model/transformer_encoder.py的后面加上残差连接，在src/model/ernie.py的emb_out中添加L2正则化(0.01)，在optimization.py中加入L2Decay(0.001),
+将warmup_proportion设置为0.01，将learning_rate这个初始学习率设置为0.0001，大约300步后结束预热学习率，达到最初设置的学习率0.0001，然后指数衰减学习的变化学习率
+
+'''
+经过在残差连接，预测学习率，正则化后，上面的三个模型在dev上的最好效果如下：
+ernie1.0---------->
+bert_base---------->
+roberta_large------------>
+
+'''
+----------------------------------------------------------------------------###############---------------------------------
+
+现在我们有了六个模型，对这六个模型进行融合，求出来一次结果
+
+将其中预测置信度高的结果取出来放到训练集合中，将dev.json也放到训练集合中，
+利用PALM来训练。采用同样的方式，利
+
+首先将train.json和dev.json改造出mrc.json数据集(44061个examples)，在这个MRC数据集上
+用PALM包训练RoBERT-zh-large，ERNIE-v1-zh-base-max-len-512,BERT-zh-base三个模型，保存模型。
+然后在train.json+dev.json+some_test.json上，利用保存的检查点训练这三个模型。
+
+在paddlepalm里面更改代码，添加残差连接，指数衰减学习率，正则化等，在mrc数据集的基础上保存的模型再训练出来三个模型
+又有了六个模型，对这六个模型进行融合，求出一次结果
+
+
+数据增强，将train.json和dev.json中的数据利用documents字段进行扩充，按照上述流程训练这12个模型（从保存的检查点开始），最后融合下这12个模型
+
+
