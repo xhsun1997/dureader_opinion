@@ -30,3 +30,26 @@ def get_mrc_data_(datasets,mrc_data_file):
                     f_write.write(json.dumps(new_example,ensure_ascii=False)+"\n")
                     nums+=1
     print(nums)
+
+
+
+def change_json_to_submit(predict_file,submit_file):
+    with open(predict_file) as f_read:
+        lines=f_read.readlines()
+    f_write=open(submit_file,"w")
+    for line in lines:
+        line=json.loads(line)
+        one_example={"id":line["id"],"yesno_answer":line["yesno_answer"]}
+        f_write.write(json.dumps(one_example,ensure_ascii=False)+"\n")
+
+
+
+
+
+
+
+
+
+
+
+

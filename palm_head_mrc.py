@@ -168,7 +168,14 @@ class MRC(Head):
     def batch_postprocess(self, rt_outputs):
         """this func will be called after each step(batch) of training/evaluating/predicting process."""
         if not self._is_training:
-            
+            probs=[]
+            logits=[]
+
+            probs=rt_outputs["probs"]
+            self._preds.extend(probs.tolist())
+            logits=rt_outputs["logits"]
+            self._preds_logits.extend(logits.tolist())
+
             unique_ids = rt_outputs['unique_ids']
             start_logits = rt_outputs['start_logits']
             end_logits = rt_outputs['end_logits']
@@ -192,7 +199,17 @@ class MRC(Head):
         """(optional interface) this func will be called after evaluation/predicting process and each epoch during training process."""
 
         if not self._is_training:
+            results=[]
+            for i in range(len(self._preds)):
+                label=int(np.argmax(np.array(self._preds[i])))
+                result={"index":i,"label":label,"logits":self._preds_logits[i],"probs":self._preds[i]}
+                results.append(result)
+
             if output_dir is not None:
+                with open(os.path.join(output_dir,"cls_predictions.json"),'w') as writer:
+                    for result in results:
+                        writer.write(json.dumps(result,ensure_ascii=False)+"\n")
+
                 examples = post_inputs['reader']['examples']
                 features = post_inputs['reader']['features']
                 if not os.path.exists(output_dir):

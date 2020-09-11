@@ -14,17 +14,17 @@ paddle/robert_zh_large下，与ernie同级目录，所有的预训练模型都�
 '''
 具体的，在不改变代码的前提下，对于ernie1.0模型训练出来----------->paddle/ernie/checkpoints/evalacc_8399853533504211
 对于bert_base模型，------->paddle/BERT/checkpoints/evalacc_8549981691688027
-对于roberta_large模型-------->(在roberta_large中将max_answer_length由100改为150,warmup_proportion设置为0.01)---->paddle/roberta_zh_large/checkpoints/evalacc_8555474185280117
+对于roberta_large模型-------->(在roberta_large中将max_answer_length由100改为150,warmup_proportion设置为0.01)---->paddle/roberta_zh_large/checkpoints/evalacc_8738557305016478
 '''
 
 然后在baseline的模型基础上，添加残差连接，指数衰减学习率，正则化等,重新(重新指的是加载原始的预训练模型参数而不是之前的检查点)训练上述三个模型
 具体的在src/model/transformer_encoder.py的后面加上残差连接，在src/model/ernie.py的emb_out中添加L2正则化(0.01)，在optimization.py中加入L2Decay(0.001),
-将warmup_proportion设置为0.01，将learning_rate这个初始学习率设置为0.0001，大约300步后结束预热学习率，达到最初设置的学习率0.0001，然后指数衰减学习的变化学习率
+将warmup_proportion设置为0.01，将learning_rate这个初始学习率设置为0.00001，大约300步后结束预热学习率，达到最初设置的学习率0.0001，然后指数衰减学习的变化学习率
 
 '''
-经过在残差连接，预测学习率，正则化后，上面的三个模型在dev上的最好效果如下：
+经过在残差连接，预热学习率，正则化后，上面的三个模型在dev上的最好效果如下：
 ernie1.0---------->
-bert_base---------->
+bert_base---------->paddle/BERT/three_change_checkpoints/evalacc_8335774441596485(从这个检查点开始，去掉预热学习率，固定为1e-6开始训练)-->paddle/BERT/three_change_checkpoints/evalacc_8451116807030392
 roberta_large------------>
 
 '''
@@ -38,6 +38,19 @@ roberta_large------------>
 首先将train.json和dev.json改造出mrc.json数据集(44061个examples)，在这个MRC数据集上
 用PALM包训练RoBERT-zh-large，ERNIE-v1-zh-base-max-len-512,BERT-zh-base三个模型，保存模型。
 然后在train.json+dev.json+some_test.json上，利用保存的检查点训练这三个模型。
+
+'''
+阅读理解任务需要修改的文件有
+reader/mrc.py,修改他是为了解决在类中的outputs_attr中包含label_ids
+reader/utils/read4ernie.py，修改他是为了解决输入数据可以包含yesno_answer->examples->label_id-->data_generator-->label_ids，主要修改他的MRCReader部分
+head/mrc.py,这是关键部分，修改它是为了在inputs_attrs中的两个部分中，reader部分包含label_ids，backbone部分包含sentence_pair_embedding
+同时在outputs_attr中，for train，那么返回loss即可，对于测试阶段，我们还需要返回cls_logits和probs
+在build中，我们需要拿到encoder_outputs和cls_feats，这样自然就有两个loss值，达到了多任务学习的目的
+
+'''
+
+
+
 
 在paddlepalm里面更改代码，添加残差连接，指数衰减学习率，正则化等，在mrc数据集的基础上保存的模型再训练出来三个模型
 又有了六个模型，对这六个模型进行融合，求出一次结果
